@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
+#include <signal.h> 
+#include <assert.h>
+#include <unistd.h>
 #include "memwatch.h"
+
 const int buf = 255;
-const int MAXPROC = 256;
+const int MAXPROC = 128;
 const int maxlines = 4096;
 const char pathVar[] = "PROCNANNYLOGS";
 const char log_start[]= "[%s] Info: Parent process is PID %s."; //logType 0
@@ -14,15 +17,75 @@ const char log_killedProc[]= "[%s] Action: PID %s (%s) killed after exceeding %s
 const char log_exit[]= "[%s] Info: Exiting. %s process(es) killed."; //logType 4
 const char log_killedOld[]= "[%s] Action: Killed previous instance of Procnanny (PID %s)."; //logType 5
 
+
+typedef struct ConfigProc {
+    char *name;
+    int runTime;
+    int isRunning;
+} ConfigProc;
+
+typedef struct ChildProc {
+    pid_t pID;
+    int isFree;
+    int monitorTime;
+} ChildProc;
+
 time_t curtime;
 int logExists = 0;
+int keepRunning = 0;
+
+//FuncDef
 time_t time(time_t *t);
 char *ctime(const time_t *timer);
 pid_t getpid(void);
 pid_t fork(void);
 unsigned int sleep(unsigned int seconds);
 pid_t waitpid(pid_t pid, int *status, int options); 
+ConfigProc *createConfigProc(char *name, int runTime, int isRunning);
+void destroyConfigProc(ConfigProc *proc);
+ChildProc *createChildProc(pid_t pID, int isFree, int monitorTime);
+void destroyChildProc(ChildProc *proc);
+static void	sig_handler(int);
 
+
+
+
+ConfigProc *createConfigProc(char *name, int runTime, int isRunning) {
+    ConfigProc *proc = malloc(sizeof(ConfigProc));
+    assert(proc != NULL);
+
+    proc->name = strdup(name);
+    proc->runTime = runTime;
+    proc->isRunning = isRunning;
+
+    return proc;
+}
+
+void destroyConfigProc(ConfigProc *proc) {
+    assert(proc != NULL);
+
+    free(proc->name);
+    free(proc);
+    printf("Dstr Config\n");
+}
+
+ChildProc *createChildProc(pid_t pID, int isFree, int monitorTime) {
+    ChildProc *proc = malloc(sizeof(ChildProc));
+    assert(proc != NULL);
+
+    proc->pID = pID;
+    proc->isFree = isFree;
+	proc->monitorTime = monitorTime;
+
+    return proc;
+}
+
+void destroyChildProc(ChildProc *proc) {
+    assert(proc != NULL);
+    free(proc);
+    printf("Dstr Child\n");
+
+}
 
 void logMessage(int logType, char *argv[]) {
 	//get path set in environment variable
@@ -99,33 +162,35 @@ void logMessage(int logType, char *argv[]) {
 	return ;
 }
 
-int readFile(char array[][buf], char *file) {
+int parseConfig(ConfigProc *pm[MAXPROC], char *file) {
 	int i = 0;
-	char * line = NULL;
-	size_t len = 0;
-	ssize_t read;
 	FILE *config = fopen(file, "r");
+
+	char name[buf];
+	int runTime;
+
 
 	if (config == NULL) {
 		printf("failed to open file\n");
 		exit(1);
 	}
-	while ((read = getline(&line, &len, config)) != -1) {
-		strcpy(array[i], line);
-		if(array[i][read-1] == '\n') {
-			array[i][read-1] = '\0';
-		}
+	while (1) {
+		int ret = fscanf(config, "%s %d", name, &runTime);
+        if(ret == 2) {
+			printf("\nRead Name,Time: %s, %d", name, runTime);
+			ConfigProc *proc = createConfigProc(name, runTime, 0);
+			pm[i] = proc;
+			i++;
+        }
 		else {
-			array[i][read] = '\0';
+			break;
 		}
-		i = i + 1;
 	}	
 	int numLines = i;
 
 	fclose(config);
 
 	return numLines;
-
 }
 
 void killOld () {
@@ -170,12 +235,14 @@ void killOld () {
 
 }
 
-int checkRunning (int pidArray[MAXPROC], char pNames[MAXPROC][buf], char pRunning[MAXPROC][buf], int numPrograms) {
+
+
+int checkRunning (int pidArray[MAXPROC], char pNames[MAXPROC][buf], char pRunning[MAXPROC][buf], int numToMonitor) {
 	char	pid[100];
 	FILE	*fpin;
 	int i;
 	int k = 0;
-	for (i = 1; i <= numPrograms; i++)
+	for (i = 1; i <= numToMonitor; i++)
 	{
 
 		char grep[512];
@@ -217,7 +284,32 @@ int checkRunning (int pidArray[MAXPROC], char pNames[MAXPROC][buf], char pRunnin
 	return k;
 }
 
+void cleanExit (ConfigProc *procsToMonitor[], int numConfig,  ChildProc *children[], int numChild) {
+	int i = 0;
+	for(i = 0; i < numConfig; i++){
+		destroyConfigProc(procsToMonitor[i]);
+	}
+	for(i = 0; i < numChild; i++){
+		kill(children[i]->pID, SIGKILL);
+		destroyChildProc(children[i]);
+	}
+	free(procsToMonitor);
+	free(children);
+}
 
+static void sig_handler(int signo)
+{
+	if (signo == SIGINT) {
+		printf("received SIGINT\n");
+		keepRunning = 0;
+	}
+	else if (signo == SIGHUP)
+		printf("received SIGHUP\n");
+	else if (signo == SIGUSR1)
+		printf("received SIGUSR1\n");
+	else
+		printf("received signal %d\n", signo);
+}
 
 
 int main( int argc, char *argv[] )  
@@ -231,27 +323,43 @@ int main( int argc, char *argv[] )
 		killOld();
 		int runTime;
 		int i;
+
+		int numToMonitor = 0;
+		int numChildren = 0;
+		ConfigProc *procsToMonitor[MAXPROC];
+		ChildProc *children[MAXPROC];
+
+		ConfigProc *(*pm)[] = &procsToMonitor; //inialize pointer to array of pointers
+		ChildProc *(*c)[] = &children; //inialize pointer to array of pointers
+
+		// ConfigProc *procsToMonitor = calloc(MAXPROC, sizeof(ConfigProc));
+		// ConfigProc **pm = &procsToMonitor;
+		// ChildProc *children = calloc(MAXPROC, sizeof(ChildProc));
+		// ChildProc **c = &children;
+
 		int numKilled = 0;
-		char pNames[256][255] = {{0}};
-		char pRunning[256][255] = {{0}};
+		char configLines[128][255] = {{0}};
+		char pRunning[128][255] = {{0}};
 		int pidArray[MAXPROC];
 		memset(pidArray, 0, MAXPROC);
 
-		int numPrograms = readFile(pNames, argv[1]) - 1;
+		numToMonitor = parseConfig((*pm), argv[1]);
 
-		runTime = atoi(pNames[0]);
+		printf("\nNum to monitor: %d\n", numToMonitor);
+
+
+		runTime = atoi(configLines[0]);
 
 		char runTimeString[15];
 		sprintf(runTimeString, "%d",runTime);
-
-
 		
-		int numRunning = checkRunning(pidArray, pNames, pRunning, numPrograms);
+		int numRunning = checkRunning(pidArray, configLines, pRunning, numToMonitor);
 
 		for(i = 0; i < numRunning; i++) {
 			pid_t pID = fork();
 
 			if (pID == 0){
+				//Child
 				char pidString[15];
 
 				sprintf(pidString, "%d",pidArray[i]);
@@ -275,7 +383,21 @@ int main( int argc, char *argv[] )
 			}
 			else{
 
+				ChildProc *proc =  createChildProc(pID, 0, runTime);
+				(*c)[i] = proc;
 			}
+		}
+
+		while(keepRunning){
+			if (signal(SIGINT, sig_handler) == SIG_ERR){
+				printf("\ncan't catch SIGINT\n");
+			}
+			if (signal(SIGHUP, sig_handler) == SIG_ERR)
+				printf("\ncan't catch SIGUSR1\n");
+			if (signal(SIGUSR1, sig_handler) == SIG_ERR)
+				printf("\ncan't catch SIGUSR1\n");
+
+			sleep(5);
 		}
 
 		for (i = 0; i < numRunning; i++){
@@ -288,11 +410,20 @@ int main( int argc, char *argv[] )
 		
 
 		char numKilledString[5];
-
 		sprintf(numKilledString, "%d",numKilled);
 		char *logDataEnd[] = {numKilledString};
 		logMessage(4, logDataEnd);
 		fflush(stdout);
+
+		for(i = 0; i < numToMonitor; i++){
+			destroyConfigProc((*pm)[i]);
+		}
+
+		for(i = 0; i < numChildren; i++){
+			kill((*c)[i]->pID, SIGKILL);
+			destroyChildProc((*c)[i]);
+		}
+
 	}
 	else{
 		printf("One argument expected.\n");
