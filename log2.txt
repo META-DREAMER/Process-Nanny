@@ -1,0 +1,13 @@
+[Mon Nov  9 18:32:44 2015] Info: Parent process is PID 24729.
+[Mon Nov  9 18:32:44 2015] Info: No 'a.out' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'test' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'dummydummy123456789' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'dummy3' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'dummy2' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'dummy4' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'dummy5' processes found.
+[Mon Nov  9 18:32:44 2015] Info: No 'dummy6' processes found.
+[Mon Nov  9 18:32:44 2015] Info: Initializing monitoring of process 'dummy' (PID 24728).
+[Mon Nov  9 18:32:44 2015] Info: Initializing monitoring of process 'dummy' (PID 24727).
+[Mon Nov  9 18:32:44 2015] Info: Initializing monitoring of process 'dummy' (PID 24726).
+[Mon Nov  9 18:32:44 2015] Info: Initializing monitoring of process 'dummy' (PID 24725).

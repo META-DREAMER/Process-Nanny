@@ -1,0 +1,23 @@
+[Mon Nov  9 18:32:45 2015] Info: Parent process is PID 24781.
+[Mon Nov  9 18:32:45 2015] Action: Killed previous instance of Procnanny (PID 24729).
+[Mon Nov  9 18:32:45 2015] Action: Killed previous instance of Procnanny (PID 24777).
+[Mon Nov  9 18:32:45 2015] Action: Killed previous instance of Procnanny (PID 24778).
+[Mon Nov  9 18:32:45 2015] Action: Killed previous instance of Procnanny (PID 24779).
+[Mon Nov  9 18:32:45 2015] Action: Killed previous instance of Procnanny (PID 24780).
+[Mon Nov  9 18:32:45 2015] Info: No 'a.out' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'test' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'dummydummy123456789' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'dummy3' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'dummy2' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'dummy4' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'dummy5' processes found.
+[Mon Nov  9 18:32:45 2015] Info: No 'dummy6' processes found.
+[Mon Nov  9 18:32:45 2015] Info: Initializing monitoring of process 'dummy' (PID 24728).
+[Mon Nov  9 18:32:45 2015] Info: Initializing monitoring of process 'dummy' (PID 24727).
+[Mon Nov  9 18:32:45 2015] Info: Initializing monitoring of process 'dummy' (PID 24726).
+[Mon Nov  9 18:32:45 2015] Info: Initializing monitoring of process 'dummy' (PID 24725).
+[Mon Nov  9 18:33:00 2015] Action: PID 24728 (dummy) killed after exceeding 15 seconds.
+[Mon Nov  9 18:33:00 2015] Action: PID 24727 (dummy) killed after exceeding 15 seconds.
+[Mon Nov  9 18:33:00 2015] Action: PID 24726 (dummy) killed after exceeding 15 seconds.
+[Mon Nov  9 18:33:00 2015] Action: PID 24725 (dummy) killed after exceeding 15 seconds.
+[Mon Nov  9 18:33:00 2015] Info: Exiting. 4 process(es) killed.
