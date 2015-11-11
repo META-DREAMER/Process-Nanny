@@ -1,5 +1,4 @@
-[Tue Nov 10 00:13:40 2015] Info: Parent process is PID 1734.
-[Tue Nov 10 00:13:40 2015] Info: No '' processes found.
-[Tue Nov 10 00:13:40 2015] Info: No '' processes found.
-[Tue Nov 10 00:13:40 2015] Info: No '' processes found.
-[Tue Nov 10 00:13:40 2015] Info: Exiting. 0 process(es) killed.
+[Tue Nov 10 18:00:19 2015] Info: Parent process is PID 11815.
+[Tue Nov 10 18:00:19 2015] Info: Exiting. a.out process(es) killed.
+[Tue Nov 10 18:00:19 2015] Info: Exiting. prog2 process(es) killed.
+[Tue Nov 10 18:00:19 2015] Info: Exiting. elm process(es) killed.

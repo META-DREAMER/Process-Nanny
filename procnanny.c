@@ -21,13 +21,15 @@ const char log_killedOld[]= "[%s] Action: Killed previous instance of Procnanny 
 typedef struct ConfigProc {
     char *name;
     int runTime;
-    int isRunning;
+    int (*pids)[];
 } ConfigProc;
 
 typedef struct ChildProc {
     pid_t pID;
     int isFree;
     int monitorTime;
+    pid_t watchPID;
+    char *watchName;
 } ChildProc;
 
 time_t curtime;
@@ -41,22 +43,23 @@ pid_t getpid(void);
 pid_t fork(void);
 unsigned int sleep(unsigned int seconds);
 pid_t waitpid(pid_t pid, int *status, int options); 
-ConfigProc *createConfigProc(char *name, int runTime, int isRunning);
+ConfigProc *createConfigProc(char *name, int runTime, int (*pids)[MAXPROC]);
 void destroyConfigProc(ConfigProc *proc);
-ChildProc *createChildProc(pid_t pID, int isFree, int monitorTime);
+ChildProc *createChildProc(pid_t pID, int isFree, int monitorTime, pid_t watchPID, char *watchName);
 void destroyChildProc(ChildProc *proc);
+int isRunning(char* procName);
 static void	sig_handler(int);
 
 
-
-
-ConfigProc *createConfigProc(char *name, int runTime, int isRunning) {
+ConfigProc *createConfigProc(char *name, int runTime, int (*pids)[MAXPROC]) {
     ConfigProc *proc = malloc(sizeof(ConfigProc));
     assert(proc != NULL);
 
+    // int pidList[MAXPROC];
+
     proc->name = strdup(name);
     proc->runTime = runTime;
-    proc->isRunning = isRunning;
+    proc->pids = pids;
 
     return proc;
 }
@@ -69,19 +72,21 @@ void destroyConfigProc(ConfigProc *proc) {
     printf("Dstr Config\n");
 }
 
-ChildProc *createChildProc(pid_t pID, int isFree, int monitorTime) {
+ChildProc *createChildProc(pid_t pID, int isFree, int monitorTime, pid_t watchPID, char *watchName) {
     ChildProc *proc = malloc(sizeof(ChildProc));
     assert(proc != NULL);
 
     proc->pID = pID;
     proc->isFree = isFree;
 	proc->monitorTime = monitorTime;
+	proc->watchName = watchName;
 
     return proc;
 }
 
 void destroyChildProc(ChildProc *proc) {
     assert(proc != NULL);
+    free(proc->watchName);
     free(proc);
     printf("Dstr Child\n");
 
@@ -162,72 +167,110 @@ void logMessage(int logType, char *argv[]) {
 	return ;
 }
 
-int parseConfig(ConfigProc *pm[MAXPROC], char *file) {
-	int i = 0;
-	FILE *config = fopen(file, "r");
-
-	char name[buf];
-	int runTime;
-
-
-	if (config == NULL) {
-		printf("failed to open file\n");
-		exit(1);
-	}
-	while (1) {
-		int ret = fscanf(config, "%s %d", name, &runTime);
-        if(ret == 2) {
-			printf("\nRead Name,Time: %s, %d", name, runTime);
-			ConfigProc *proc = createConfigProc(name, runTime, 0);
-			pm[i] = proc;
-			i++;
-        }
-		else {
-			break;
-		}
-	}	
-	int numLines = i;
-
-	fclose(config);
-
-	return numLines;
-}
-
-void killOld () {
-	int pidArray[MAXPROC];
-	char	pid[100];
+//Returns nu,ber of PID found for a given procName
+//Adds the PIDS to the given array
+int getPIDs(char* procName, int (*pids)[MAXPROC]) {
+	
 	FILE	*fpin;
-	int i;
+	char cmd[512];
+	char	pid[100];
 	int k = 0;
+	int i;
 
-	if ((fpin = popen("pidof -x procnanny | tr ' ' '\n'", "r")) == NULL) {
+
+	for (i = 0; i < MAXPROC; i++) {
+	    (*pids)[i] = 0;
+	}
+
+	sprintf(cmd, "pidof -x %s | tr ' ' '\n'",procName);
+	if ((fpin = popen(cmd, "r")) == NULL) {
 		printf("popen error\n");
 		exit(0);
 	}
-	int end = 0;
-	while(!end) {
-		if (fgets(pid, maxlines, fpin) == NULL) {
-			break;
-		}
-		else {
-			char *pos;
-			if ((pos=strchr(pid, '\n')) != NULL)
-			    *pos = '\0';
 
-			pidArray[k] = atoi(pid);
-			k++;
-		}
+	// printf("found pid: %s\n", pid);
+	while(fgets(pid, maxlines, fpin) != NULL) {
+		char *pos;
+		if ((pos=strchr(pid, '\n')) != NULL)
+		    *pos = '\0';
+		(*pids)[k] = atoi(pid);
+		k++;
 	}
+	printf("get1\n");
+
 	if (pclose(fpin) == -1) {
 		printf("pclose error\n");
 		exit(0);
 	}
 
+	return k;
+}
+
+int isRunning(char* procName) {
+	FILE	*fpin;
+	char cmd[512];
+	char	pid[100];
+	int k = 0;
+
+
+	sprintf(cmd, "pidof -x %s | tr ' ' '\n'",procName);
+	if ((fpin = popen(cmd, "r")) == NULL) {
+		printf("popen error\n");
+		exit(0);
+	}
+
+	if(fgets(pid, maxlines, fpin) != NULL) {
+		k = 1;
+	}
+
+	if (pclose(fpin) == -1) {
+		printf("pclose error\n");
+		exit(0);
+	}
+	return k;
+}
+
+int parseConfig(ConfigProc *pm[MAXPROC], char *file) {
+	int i = 0;
+	FILE *config = fopen(file, "r");
+	char name[buf];
+	int runTime;
+
+	if (config == NULL) {
+		printf("failed to open file\n");
+		exit(1);
+	}
+	while ((fscanf(config, "%s %d", name, &runTime)) == 2) {
+		assert(name != NULL);
+		// printf("\nRead Name,Time: %s, %d", name, runTime);
+		int running = 0;
+		running = isRunning(name);
+
+		if(running == 0) { //No processes found
+			char *logDataNotFound[] = {name};
+			logMessage(4, logDataNotFound);
+		}
+		int temp[128] = {0};
+		pm[i] = createConfigProc(name, runTime, &temp);
+
+		i++;
+	}
+	fclose(config);
+	return i;
+}
+
+void killOld () {
+	int oldProcs[MAXPROC];
+	int i;
+	int k = 0;
+
+	k = getPIDs("procnanny", &oldProcs);
+
 	for(i = 0; i < k; i++){
-		if(pidArray[i] != getpid()){
-			kill(pidArray[i], SIGKILL);
+		if(oldProcs[i] != getpid()){
+			kill(oldProcs[i], SIGKILL);
 			char oldPID[15];
-			sprintf(oldPID, "%d",pidArray[i]);
+			sprintf(oldPID, "%d",oldProcs[i]);
 			char *logDataOld[] = {oldPID};
 			logMessage(5, logDataOld);
 		}
@@ -235,67 +278,29 @@ void killOld () {
 
 }
 
+int isBeingMonitored(pid_t pid, ChildProc *c[MAXPROC], int numC){
+	return 0;
+}
 
-
-int checkRunning (int pidArray[MAXPROC], char pNames[MAXPROC][buf], char pRunning[MAXPROC][buf], int numToMonitor) {
-	char	pid[100];
-	FILE	*fpin;
+void refreshPIDs (ConfigProc *pm[MAXPROC],int numPM) {
 	int i;
-	int k = 0;
-	for (i = 1; i <= numToMonitor; i++)
+
+	for (i = 0; i < numPM; i++)
 	{
-
-		char grep[512];
-		// sprintf(grep, "ps aux | grep '\\b%s\\b' | grep -v grep | awk '{print $2}'",pNames[i]);
-		sprintf(grep, "pidof -x %s | tr ' ' '\n'",pNames[i]);
-
-		if ((fpin = popen(grep, "r")) == NULL) {
-			printf("popen error\n");
-			exit(0);
+		char *name = pm[i]->name;
+		int pidList[MAXPROC];
+		for (i = 0; i < MAXPROC; i++) {
+		    pidList[i] = 0;
 		}
-		int pExists = 0;
-		int end = 0;
-		while(!end) {
-			if (fgets(pid, maxlines, fpin) == NULL) {
-				if(!pExists) {
-					char *logData[] = {pNames[i]};
-					logMessage(1, logData);
-				}
-				break;
-			}
-			else {
-				time(&curtime);
-				char *pos;
-				if ((pos=strchr(pid, '\n')) != NULL)
-				    *pos = '\0';
-
-				pidArray[k] = atoi(pid);
-				strcpy(pRunning[k], pNames[i]);
-				k++;
-				pExists = 1;
-			}
+		getPIDs(name,  &pidList);
+		for (i = 0; i < 10; i++) {
+		    printf("Got PID: %d\n", pidList[i]);
 		}
-		if (pclose(fpin) == -1) {
-			printf("pclose error\n");
-			exit(0);
-		}
-
+		pm[i]->pids = &pidList;
 	}
-	return k;
+	printf("Done\n");
 }
 
-void cleanExit (ConfigProc *procsToMonitor[], int numConfig,  ChildProc *children[], int numChild) {
-	int i = 0;
-	for(i = 0; i < numConfig; i++){
-		destroyConfigProc(procsToMonitor[i]);
-	}
-	for(i = 0; i < numChild; i++){
-		kill(children[i]->pID, SIGKILL);
-		destroyChildProc(children[i]);
-	}
-	free(procsToMonitor);
-	free(children);
-}
 
 static void sig_handler(int signo)
 {
@@ -321,39 +326,40 @@ int main( int argc, char *argv[] )
 		char *logDataStart[] = {myPid};
 		logMessage(0, logDataStart);
 		killOld();
-		int runTime;
 		int i;
 
-		int numToMonitor = 0;
+		int numConfig = 0;
 		int numChildren = 0;
+		int numKilled = 0;
 		ConfigProc *procsToMonitor[MAXPROC];
 		ChildProc *children[MAXPROC];
-
 		ConfigProc *(*pm)[] = &procsToMonitor; //inialize pointer to array of pointers
 		ChildProc *(*c)[] = &children; //inialize pointer to array of pointers
 
-		// ConfigProc *procsToMonitor = calloc(MAXPROC, sizeof(ConfigProc));
-		// ConfigProc **pm = &procsToMonitor;
-		// ChildProc *children = calloc(MAXPROC, sizeof(ChildProc));
-		// ChildProc **c = &children;
 
-		int numKilled = 0;
-		char configLines[128][255] = {{0}};
-		char pRunning[128][255] = {{0}};
-		int pidArray[MAXPROC];
-		memset(pidArray, 0, MAXPROC);
+		numConfig = parseConfig((*pm), argv[1]);
 
-		numToMonitor = parseConfig((*pm), argv[1]);
+		refreshPIDs((*pm), numConfig);
 
-		printf("\nNum to monitor: %d\n", numToMonitor);
+		int numRunning = 0;
+
+		for(i=0; i<numConfig; i++){
+			int (*pids)[] = (*pm)[i]->pids;
+			char *name = (*pm)[i]->name;
+			printf("Name: %s | PID: %d\n",name,(*pids)[0]);
+		}
 
 
-		runTime = atoi(configLines[0]);
+		//TEMP FIX
+		int pidArray[128] = {0};
+		char *pRunning= "test";
+		char *runTimeString = "test";
+		int runTime = 5;
+		int watchPID = 0;
+		char *watchName = "test";
+		//END TEMP FIX
 
-		char runTimeString[15];
-		sprintf(runTimeString, "%d",runTime);
-		
-		int numRunning = checkRunning(pidArray, configLines, pRunning, numToMonitor);
+		printf("test2\n");
 
 		for(i = 0; i < numRunning; i++) {
 			pid_t pID = fork();
@@ -363,12 +369,12 @@ int main( int argc, char *argv[] )
 				char pidString[15];
 
 				sprintf(pidString, "%d",pidArray[i]);
-				char *logData1[] = {pRunning[i], pidString};
+				char *logData1[] = {pRunning, pidString};
 				logMessage(2, logData1);
 				sleep(runTime);
 
 				if(kill(pidArray[i], SIGKILL) == 0) {
-					char *logData2[] = {pidString, pRunning[i], runTimeString};
+					char *logData2[] = {pidString, pRunning, runTimeString};
 					logMessage(3, logData2);
 					fflush(stdout);
 					exit(0);
@@ -382,8 +388,7 @@ int main( int argc, char *argv[] )
 				exit(1);
 			}
 			else{
-
-				ChildProc *proc =  createChildProc(pID, 0, runTime);
+				ChildProc *proc =  createChildProc(pID, 0, runTime, watchPID, watchName);
 				(*c)[i] = proc;
 			}
 		}
@@ -415,7 +420,7 @@ int main( int argc, char *argv[] )
 		logMessage(4, logDataEnd);
 		fflush(stdout);
 
-		for(i = 0; i < numToMonitor; i++){
+		for(i = 0; i < numConfig; i++){
 			destroyConfigProc((*pm)[i]);
 		}
 
