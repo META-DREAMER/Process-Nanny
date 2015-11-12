@@ -1,4 +1,12 @@
-[Tue Nov 10 18:00:19 2015] Info: Parent process is PID 11815.
-[Tue Nov 10 18:00:19 2015] Info: Exiting. a.out process(es) killed.
-[Tue Nov 10 18:00:19 2015] Info: Exiting. prog2 process(es) killed.
-[Tue Nov 10 18:00:19 2015] Info: Exiting. elm process(es) killed.
+[Wed Nov 11 20:17:23 2015] Info: Parent process is PID 31361.
+[Wed Nov 11 20:17:23 2015] Info: No 'dummy' processes found.
+[Wed Nov 11 20:17:23 2015] Info: No 'newproc' processes found.
+[Wed Nov 11 20:17:23 2015] Info: No 'newproc2' processes found.
+[Wed Nov 11 20:17:23 2015] Info: No 'a.out' processes found.
+[Wed Nov 11 20:17:38 2015] Info: Initializing monitoring of process 'newproc' (PID 31435).
+[Wed Nov 11 20:17:43 2015] Info: Initializing monitoring of process 'newproc' (PID 31458).
+[Wed Nov 11 20:17:53 2015] Action: PID 31435 (newproc) killed after exceeding 15 seconds.
+[Wed Nov 11 20:17:58 2015] Action: PID 31458 (newproc) killed after exceeding 15 seconds.
+[Wed Nov 11 20:17:58 2015] Info: Initializing monitoring of process 'newproc' (PID 31523).
+[Wed Nov 11 20:18:13 2015] Action: PID 31523 (newproc) killed after exceeding 15 seconds.
+[Wed Nov 11 20:18:24 2015] Info: Caught SIGINT. Exiting cleanly.  3 process(es) killed.
